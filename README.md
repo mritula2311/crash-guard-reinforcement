@@ -53,10 +53,10 @@ python train.py --model PPO --timesteps 100000 --dataset-size 10000 --learning-r
 ### 2. Evaluate a Model
 ```bash
 # Basic evaluation
-python evaluate.py --model-path logs/crash_guard_dqn_20231201_120000.zip --episodes 1000
+python evaluate.py --model-path logs/training_dqn_20250728_062109/crash_guard_dqn_20250728_062111.zip --episodes 1000
 
 # Comprehensive evaluation with heatmap
-python evaluate.py --model-path logs/trained_model.zip --episodes 1000 --generate-heatmap
+python evaluate.py --model-path logs/training_dqn_20250728_062109/crash_guard_dqn_20250728_062111.zip --episodes 1000 --generate-heatmap
 ```
 
 ### 3. Explore the Environment

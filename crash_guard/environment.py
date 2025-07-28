@@ -15,7 +15,10 @@ class CrashGuardEnv(gym.Env):
     def __init__(self, 
                  dataset_size: int = 10000,
                  test_mode: bool = False,
-                 random_seed: int = 42):
+                 random_seed: int = 42,
+                 balanced_severity: bool = False,
+                 enhanced_rewards: bool = False,
+                 curriculum_learning: bool = False):
         """
         Initialize the CrashGuard RL environment.
         
@@ -23,12 +26,23 @@ class CrashGuardEnv(gym.Env):
             dataset_size: Size of the crash scenario dataset
             test_mode: If True, use deterministic scenarios for evaluation
             random_seed: Random seed for reproducibility
+            balanced_severity: If True, generate balanced severity distribution
+            enhanced_rewards: If True, use enhanced reward shaping
+            curriculum_learning: If True, enable curriculum learning
         """
         super(CrashGuardEnv, self).__init__()
         
         self.dataset_size = dataset_size
         self.test_mode = test_mode
         self.random_seed = random_seed
+        self.balanced_severity = balanced_severity
+        self.enhanced_rewards = enhanced_rewards
+        self.curriculum_learning = curriculum_learning
+        
+        # Curriculum learning parameters
+        self.curriculum_stage = 0
+        self.episodes_completed = 0
+        self.stage_thresholds = [1000, 3000, 6000]  # Episode thresholds for curriculum stages
         
         # Initialize data generator
         self.data_generator = CrashDataGenerator(random_seed)
