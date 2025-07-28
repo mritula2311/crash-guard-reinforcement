@@ -134,6 +134,7 @@ class CrashGuardEnv(gym.Env):
     def _calculate_reward(self, action: int) -> float:
         """
         Calculate reward based on action taken and true crash severity.
+        Enhanced version with better reward shaping for improved accuracy.
         
         Args:
             action: Action taken by the agent (0-4)
@@ -147,7 +148,18 @@ class CrashGuardEnv(gym.Env):
         true_severity = self.current_scenario['true_severity']
         drowsiness = self.current_scenario['driver_drowsiness']
         g_force = self.current_scenario['impact_g_force']
+        seatbelt = self.current_scenario['seatbelt_usage']
+        speed = self.current_scenario['vehicle_speed']
         
+        if self.enhanced_rewards:
+            reward = self._calculate_enhanced_reward(action, true_severity, drowsiness, g_force, seatbelt, speed)
+        else:
+            reward = self._calculate_standard_reward(action, true_severity, drowsiness, g_force)
+        
+        return reward
+    
+    def _calculate_standard_reward(self, action: int, true_severity: int, drowsiness: float, g_force: float) -> float:
+        """Calculate standard reward function."""
         reward = 0.0
         
         # Action mappings:
@@ -218,9 +230,93 @@ class CrashGuardEnv(gym.Env):
         
         return reward
     
+    def _calculate_enhanced_reward(self, action: int, true_severity: int, drowsiness: float, 
+                                 g_force: float, seatbelt: float, speed: float) -> float:
+        """
+        Enhanced reward function with better shaping for improved accuracy.
+        """
+        reward = 0.0
+        
+        # Base rewards for correct action-severity matching
+        severity_action_matrix = {
+            # Severe crashes (priority: immediate action)
+            2: {0: 15.0, 1: -8.0, 2: 4.0, 3: 10.0, 4: -12.0},
+            # Moderate crashes (priority: appropriate response)
+            1: {0: 3.0, 1: 2.0, 2: 8.0, 3: 6.0, 4: 2.0},
+            # Minor crashes (priority: minimal response)
+            0: {0: -12.0, 1: 4.0, 2: 5.0, 3: 3.0, 4: 6.0}
+        }
+        
+        base_reward = severity_action_matrix[true_severity][action]
+        reward += base_reward
+        
+        # Enhanced contextual modifiers
+        if true_severity == 2:  # Severe crashes
+            # Higher penalties for delays when critical indicators present
+            if action == 1:  # Waiting
+                if drowsiness > 0.5:
+                    reward -= 4.0  # Don't wait when driver is drowsy
+                if g_force > 0.7:
+                    reward -= 5.0  # Don't wait with high impact
+                if seatbelt < 0.5:
+                    reward -= 3.0  # More urgent without seatbelt
+                if speed > 0.8:
+                    reward -= 3.0  # High speed crashes need immediate action
+            
+            # Bonus for correct immediate response
+            if action == 0:  # Immediate alert
+                if g_force > 0.7:
+                    reward += 3.0  # Bonus for recognizing high-impact severe crash
+                if drowsiness > 0.5:
+                    reward += 2.0  # Bonus for recognizing drowsy driver risk
+                self.correct_predictions += 1
+            
+            # Bonus for broadcast alert (also good for severe)
+            elif action == 3:
+                self.correct_predictions += 1
+            
+            # Track missed severe crashes
+            elif action in [1, 4]:
+                self.missed_severe_crashes += 1
+        
+        elif true_severity == 1:  # Moderate crashes
+            # Reward appropriate responses
+            if action in [2, 3]:  # Local safety or broadcast
+                self.correct_predictions += 1
+                # Bonus for considering context
+                if speed > 0.6:
+                    reward += 1.0  # Higher speed moderate crashes benefit from broadcast
+        
+        else:  # Minor crashes
+            # Reward conservative responses
+            if action in [1, 2, 4]:  # Wait, local safety, or low priority
+                self.correct_predictions += 1
+            
+            # Heavy penalty for false alarms
+            if action == 0:
+                self.false_alarms += 1
+                # Extra penalty if clearly minor (low speed, low g-force)
+                if speed < 0.3 and g_force < 0.2:
+                    reward -= 5.0
+        
+        # Global accuracy bonuses
+        accuracy_bonus = 0.0
+        total_decisions = self.correct_predictions + self.false_alarms + self.missed_severe_crashes
+        if total_decisions > 0:
+            current_accuracy = self.correct_predictions / total_decisions
+            if current_accuracy > 0.8:
+                accuracy_bonus = 2.0  # Bonus for maintaining high accuracy
+            elif current_accuracy > 0.9:
+                accuracy_bonus = 4.0  # Higher bonus for very high accuracy
+        
+        reward += accuracy_bonus
+        
+        return reward
+    
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict]:
         """
         Reset the environment to start a new episode.
+        Enhanced with curriculum learning support.
         
         Args:
             seed: Random seed for reproducibility
@@ -231,6 +327,23 @@ class CrashGuardEnv(gym.Env):
         # Set seed if provided
         if seed is not None:
             np.random.seed(seed)
+        
+        # Update curriculum learning stage
+        if self.curriculum_learning and not self.test_mode:
+            self.episodes_completed += 1
+            old_stage = self.curriculum_stage
+            
+            # Update curriculum stage based on episodes completed
+            for i, threshold in enumerate(self.stage_thresholds):
+                if self.episodes_completed >= threshold:
+                    self.curriculum_stage = i + 1
+                else:
+                    break
+            
+            # Regenerate dataset if curriculum stage changed
+            if old_stage != self.curriculum_stage:
+                print(f"Curriculum learning: Advancing to stage {self.curriculum_stage}")
+                self.dataset = self._generate_dataset()
         
         # Select next scenario
         if self.test_mode:
@@ -245,7 +358,10 @@ class CrashGuardEnv(gym.Env):
         # Reset episode statistics
         self.total_reward = 0
         
-        info = {}
+        info = {
+            'curriculum_stage': self.curriculum_stage if self.curriculum_learning else 0,
+            'episodes_completed': self.episodes_completed
+        }
         
         return self._get_current_state(), info
     

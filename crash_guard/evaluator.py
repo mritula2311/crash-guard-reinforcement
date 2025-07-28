@@ -16,21 +16,26 @@ class CrashGuardEvaluator:
     Evaluator for trained CrashGuard RL models.
     """
     
-    def __init__(self, model_path: str = None, model_type: str = 'DQN'):
+    def __init__(self, model_path: str = None, model_type: str = 'DQN', model=None):
         """
         Initialize the evaluator.
         
         Args:
-            model_path: Path to trained model
+            model_path: Path to trained model (optional if model is provided)
             model_type: Type of RL model ('DQN' or 'PPO')
+            model: Pre-trained model object (optional)
         """
         self.model_path = model_path
         self.model_type = model_type
-        self.model = None
+        self.model = model
         self.evaluation_results = {}
         
-        if model_path:
+        if model is None and model_path:
             self.load_model(model_path)
+        elif model is not None:
+            print("Using provided model object")
+        elif model_path is None and model is None:
+            raise ValueError("Either model_path or model must be provided")
     
     def load_model(self, model_path: str):
         """

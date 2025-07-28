@@ -25,9 +25,9 @@ def parse_arguments():
     parser.add_argument('--model-path', type=str, required=True,
                        help='Path to trained model file')
     
-    parser.add_argument('--model-type', type=str, default='DQN',
-                       choices=['DQN', 'PPO'],
-                       help='Type of RL model')
+    parser.add_argument('--model-type', type=str, default='auto',
+                       choices=['DQN', 'PPO', 'auto'],
+                       help='Type of RL model (auto-detect from path if not specified)')
     
     parser.add_argument('--episodes', type=int, default=1000,
                        help='Number of test episodes')
@@ -50,9 +50,28 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def detect_model_type(model_path):
+    """Auto-detect model type from file path."""
+    model_path_lower = model_path.lower()
+    
+    if 'ppo' in model_path_lower:
+        return 'PPO'
+    elif 'dqn' in model_path_lower:
+        return 'DQN'
+    else:
+        # Default to DQN if cannot detect
+        print("Warning: Could not auto-detect model type from path. Defaulting to DQN.")
+        print("Use --model-type to specify explicitly.")
+        return 'DQN'
+
+
 def main():
     """Main evaluation function."""
     args = parse_arguments()
+    
+    # Auto-detect model type if needed
+    if args.model_type == 'auto':
+        args.model_type = detect_model_type(args.model_path)
     
     print("="*60)
     print("CRASHGUARD RL MODEL EVALUATION")

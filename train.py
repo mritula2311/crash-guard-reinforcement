@@ -44,6 +44,15 @@ def parse_arguments():
     parser.add_argument('--quick', action='store_true',
                        help='Run quick training with default parameters')
     
+    parser.add_argument('--enhanced', action='store_true',
+                       help='Use enhanced training features for better accuracy')
+    
+    parser.add_argument('--balanced-training', action='store_true',
+                       help='Use balanced severity distribution for training')
+    
+    parser.add_argument('--enhanced-rewards', action='store_true',
+                       help='Use enhanced reward shaping')
+    
     return parser.parse_args()
 
 
@@ -81,10 +90,46 @@ def main():
                 'test_mode': False
             }
             
-            # Setup model parameters
+            # Add enhanced features if requested
+            if args.enhanced or args.balanced_training:
+                env_params['balanced_severity'] = True
+                print("Using balanced severity distribution for better accuracy")
+            
+            if args.enhanced or args.enhanced_rewards:
+                env_params['enhanced_rewards'] = True
+                print("Using enhanced reward shaping for better learning")
+            
+            # Setup model parameters with enhanced defaults if requested
             model_params = {}
             if args.learning_rate is not None:
                 model_params['learning_rate'] = args.learning_rate
+            elif args.enhanced:
+                # Use enhanced learning rate
+                model_params['learning_rate'] = 5e-4
+                print("Using enhanced learning rate: 5e-4")
+            
+            # Enhanced model parameters for better accuracy
+            if args.enhanced:
+                if args.model == 'DQN':
+                    model_params.update({
+                        'batch_size': 128,
+                        'buffer_size': 100000,
+                        'target_update_interval': 2000,
+                        'exploration_fraction': 0.4,
+                        'exploration_final_eps': 0.02,
+                        'gamma': 0.995,
+                        'tau': 0.005
+                    })
+                elif args.model == 'PPO':
+                    model_params.update({
+                        'batch_size': 128,
+                        'n_steps': 4096,
+                        'n_epochs': 15,
+                        'gamma': 0.995,
+                        'gae_lambda': 0.98,
+                        'ent_coef': 0.01
+                    })
+                print(f"Using enhanced {args.model} parameters for better accuracy")
             
             # Initialize trainer
             trainer = CrashGuardTrainer(

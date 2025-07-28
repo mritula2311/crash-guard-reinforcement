@@ -20,7 +20,7 @@ import numpy as np
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from crash_guard import CrashGuardTrainer, CrashGuardEnv
-from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 import torch.nn as nn
@@ -182,12 +182,8 @@ def create_training_callbacks(args, log_path, eval_env):
     )
     callbacks.append(eval_callback)
     
-    # Stop training when reward threshold is reached
-    reward_threshold_callback = StopTrainingOnRewardThreshold(
-        reward_threshold=8.0,  # Stop when average reward reaches 8.0
-        verbose=1
-    )
-    callbacks.append(reward_threshold_callback)
+    # Note: StopTrainingOnRewardThreshold is automatically handled by EvalCallback
+    # when callback_on_new_best is used
     
     return callbacks
 
