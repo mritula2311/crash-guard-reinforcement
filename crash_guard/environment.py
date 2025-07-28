@@ -79,10 +79,26 @@ class CrashGuardEnv(gym.Env):
     
     def _generate_dataset(self) -> pd.DataFrame:
         """Generate and normalize the crash scenario dataset."""
+        # Determine severity distribution based on training settings
+        if self.balanced_severity:
+            # Balanced distribution for better training
+            severity_distribution = {'minor': 0.33, 'moderate': 0.33, 'severe': 0.34}
+        elif self.curriculum_learning:
+            # Start with easier scenarios, gradually increase difficulty
+            if self.curriculum_stage == 0:
+                severity_distribution = {'minor': 0.7, 'moderate': 0.2, 'severe': 0.1}
+            elif self.curriculum_stage == 1:
+                severity_distribution = {'minor': 0.5, 'moderate': 0.3, 'severe': 0.2}
+            else:
+                severity_distribution = {'minor': 0.3, 'moderate': 0.4, 'severe': 0.3}
+        else:
+            # Default realistic distribution
+            severity_distribution = {'minor': 0.5, 'moderate': 0.3, 'severe': 0.2}
+        
         # Generate raw dataset
         raw_dataset = self.data_generator.generate_dataset(
             n_samples=self.dataset_size,
-            severity_distribution={'minor': 0.5, 'moderate': 0.3, 'severe': 0.2}
+            severity_distribution=severity_distribution
         )
         
         # Normalize features
